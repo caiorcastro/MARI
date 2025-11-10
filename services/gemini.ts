@@ -226,3 +226,55 @@ export async function generateImageFromText(prompt: string): Promise<string> {
         throw new Error("Falha ao gerar imagem. Por favor, verifique o console para mais detalhes.");
     }
 }
+
+/**
+ * Generates a creative prompt suggestion for an image based on the report content.
+ * @param {string} reportContent - The full text of the generated report.
+ * @returns {Promise<string>} A promise that resolves with a short, conceptual image prompt.
+ */
+export async function generateImagePromptSuggestion(reportContent: string): Promise<string> {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+                parts: [{
+                    text: `Baseado no seguinte relatório, crie um prompt curto (máximo 15 palavras) para gerar uma imagem de capa. O prompt deve ser conceitual, simbólico e profissional. Exemplo: "Uma ponte de dados conectando estratégia e resultados, em estilo abstrato."\n\nRELATÓRIO:\n${reportContent}`
+                }]
+            },
+            config: {
+                temperature: 0.8,
+                maxOutputTokens: 50,
+            }
+        });
+        return response.text.trim().replace(/"/g, ''); // Clean up quotes
+    } catch (error) {
+        console.error("Error generating image prompt suggestion:", error);
+        return ''; // Return empty string on failure
+    }
+}
+
+/**
+ * Generates a suggestion for the visual style of presentation images based on the report content.
+ * @param {string} reportContent - The full text of the generated report.
+ * @returns {Promise<string>} A promise that resolves with a short string describing a visual style.
+ */
+export async function generateImageStyleSuggestion(reportContent: string): Promise<string> {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: {
+                parts: [{
+                    text: `Baseado no tom e conteúdo do seguinte relatório, sugira um estilo visual para as imagens de uma apresentação (máximo 5 palavras). Exemplos: "Fotorrealista, corporativo, tons de azul", "Ilustração vetorial, minimalista", "Arte linear, limpa e moderna".\n\nRELATÓRIO:\n${reportContent}`
+                }]
+            },
+            config: {
+                temperature: 0.7,
+                maxOutputTokens: 30,
+            }
+        });
+        return response.text.trim().replace(/"/g, ''); // Clean up quotes
+    } catch (error) {
+        console.error("Error generating image style suggestion:", error);
+        return ''; // Return empty string on failure
+    }
+}

@@ -84,7 +84,7 @@ export async function listGammaThemes(): Promise<{ id: string, name: string }[]>
  */
 async function pollForPptxGeneration(generationId: string): Promise<string> {
     const pollInterval = 5000; // Poll every 5 seconds
-    const maxAttempts = 30;   // Timeout after 2.5 minutes (30 * 5s)
+    const maxAttempts = 60;   // Timeout after 5 minutes (60 * 5s)
     let attempts = 0;
 
     console.log(`[Gamma Service] Iniciando polling para generationId: ${generationId}`);

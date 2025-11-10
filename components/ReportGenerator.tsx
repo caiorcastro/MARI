@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { generateReportDraft, generateImageFromText } from '../services/gemini';
+import { generateReportDraft, generateImageFromText, generateImagePromptSuggestion, generateImageStyleSuggestion } from '../services/gemini';
 import { generatePresentation, listGammaThemes } from '../services/gamma';
 import { fileToBase64, downloadTextFile, convertExcelToText, fileToText } from '../utils/fileHelper';
 import { UploadIcon, FileIcon, ImageIcon, TrashIcon, SparklesIcon, ClipboardIcon, DownloadIcon, GlobeIcon, SettingsIcon, FileTextIcon, WandIcon, EditIcon, SaveIcon, PresentationIcon, RefreshCwIcon } from './icons';
@@ -100,6 +100,7 @@ export const ReportGenerator: React.FC<{ setReportContext: (context: string | nu
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [copySuccess, setCopySuccess] = useState('');
     const [imagePrompt, setImagePrompt] = useState('');
+    const [loadingSuggestions, setLoadingSuggestions] = useState(false);
     
     // PPTX State
     const [isPptLoading, setIsPptLoading] = useState(false);
@@ -210,6 +211,7 @@ export const ReportGenerator: React.FC<{ setReportContext: (context: string | nu
         setReportContext(null);
         setImagePrompt('');
         setImageStylePrompt('');
+        setLoadingSuggestions(false);
     };
 
     /** Saves the edited draft, updating the main draft result. */
@@ -234,7 +236,6 @@ export const ReportGenerator: React.FC<{ setReportContext: (context: string | nu
 
         try {
             // Process all uploaded files into the format required by the Gemini API.
-            // Excel and CSV are converted to text client-side.
             const fileParts: GeminiPart[] = await Promise.all(
                 knowledgeBaseFiles.map(async (file): Promise<GeminiPart> => {
                     const fileType = file.type;
@@ -255,9 +256,6 @@ export const ReportGenerator: React.FC<{ setReportContext: (context: string | nu
                             },
                         };
                     } else {
-                        // For other file types like PDF, treat them as text for now, but Gemini won't process them directly.
-                        // A more robust solution for PDFs would require a server-side component or a library like PDF.js.
-                        // For this implementation, we will pass it as a blob which gemini can handle.
                          const base64Data = await fileToBase64(file);
                          return {
                              inlineData: {
@@ -285,6 +283,25 @@ export const ReportGenerator: React.FC<{ setReportContext: (context: string | nu
             if (groundingChunks) {
                 setSources(groundingChunks);
             }
+
+            // Generate suggestions for the creative prompts
+            setLoadingSuggestions(true);
+            try {
+                console.log("Generating suggestions for prompts...");
+                const [promptSuggestion, styleSuggestion] = await Promise.all([
+                    generateImagePromptSuggestion(text),
+                    generateImageStyleSuggestion(text),
+                ]);
+                setImagePrompt(promptSuggestion);
+                setImageStylePrompt(styleSuggestion);
+                console.log("Suggestions generated:", { promptSuggestion, styleSuggestion });
+            } catch (suggestionError) {
+                console.error("Failed to generate prompt suggestions:", suggestionError);
+                // Non-critical error, so we don't show it to the user.
+            } finally {
+                setLoadingSuggestions(false);
+            }
+
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.');
         } finally {
@@ -520,16 +537,18 @@ export const ReportGenerator: React.FC<{ setReportContext: (context: string | nu
                         {/* Action buttons for post-generation tasks */}
                         <div className="mt-6 space-y-4">
                            <div>
-                                <label htmlFor="image-prompt" className="block text-sm font-medium text-gray-700 mb-1">Prompt para a Imagem de Capa</label>
+                                <label htmlFor="image-prompt" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Prompt para a Imagem de Capa {loadingSuggestions && <span className="text-gray-500 font-normal animate-pulse">- gerando sugestão...</span>}
+                                </label>
                                 <div className="flex gap-2">
                                 <input 
                                     id="image-prompt"
                                     type="text"
                                     value={imagePrompt}
                                     onChange={e => setImagePrompt(e.target.value)}
-                                    placeholder="Ex: Uma representação visual do crescimento da marca..."
-                                    className="flex-grow block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                    disabled={!!loading || isEditing}
+                                    placeholder={loadingSuggestions ? "Analisando relatório para sugerir um prompt..." : "Ex: Uma representação visual do crescimento da marca..."}
+                                    className="flex-grow block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                                    disabled={!!loading || isEditing || loadingSuggestions}
                                 />
                                 <button onClick={handleSubmitImageGeneration} disabled={!!loading || isEditing} className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-100 disabled:bg-gray-100 disabled:text-gray-400">
                                     <ImageIcon className="w-5 h-5"/> <span className="ml-2">Gerar Imagem</span>
@@ -557,22 +576,25 @@ export const ReportGenerator: React.FC<{ setReportContext: (context: string | nu
                                     </select>
                                 </div>
                                 <div>
-                                    <label htmlFor="image-style" className="block text-sm font-medium text-gray-700 mb-1">2. Descreva o Estilo das Imagens</label>
+                                    <label htmlFor="image-style" className="block text-sm font-medium text-gray-700 mb-1">
+                                        2. Descreva o Estilo das Imagens {loadingSuggestions && <span className="text-gray-500 font-normal animate-pulse">- gerando sugestão...</span>}
+                                    </label>
                                      <input 
                                         id="image-style"
                                         type="text"
                                         value={imageStylePrompt}
                                         onChange={e => setImageStylePrompt(e.target.value)}
-                                        placeholder="Ex: corporativo, tons de azul e cinza, moderno"
-                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500"
-                                        disabled={isPptLoading}
+                                        placeholder={loadingSuggestions ? "Analisando relatório para sugerir um estilo..." : "Ex: corporativo, tons de azul e cinza, moderno"}
+                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                                        disabled={isPptLoading || loadingSuggestions}
                                     />
                                     <div className="flex flex-wrap gap-2 mt-2">
                                         {imageStylePresets.map(preset => (
                                             <button 
                                                 key={preset}
                                                 onClick={() => setImageStylePrompt(preset)}
-                                                className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-medium rounded-full hover:bg-gray-300"
+                                                disabled={isPptLoading || loadingSuggestions}
+                                                className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-medium rounded-full hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400"
                                             >
                                                 {preset}
                                             </button>
