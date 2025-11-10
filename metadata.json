@@ -1,0 +1,5 @@
+{
+  "name": "MARI V2",
+  "description": "An advanced AI platform to generate in-depth reports and insights. Manage clients, build a knowledge base with PDFs and spreadsheets, and leverage Gemini to transform complex data into strategic reports.",
+  "requestFramePermissions": []
+}
